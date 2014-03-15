@@ -56,73 +56,82 @@ class KnapzakTrivialGreedy(KnapzakBase) :
 
 class KnapzakGreedyDensity(KnapzakTrivialGreedy) :    
     def sort(self):
-        self.items = sorted(self.items, key = lambda x : x.value/x.weight)
+        self.items = sorted(self.items, key = lambda x : -float(x.value)/x.weight)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
+
+Step = namedtuple("Step", ["idx", "weight", "value", "taken"])
 
 class KnapzakOptimisticBounding(KnapzakGreedyDensity):
     
-    def getOptimisticSolution(self, start = 0, capacity = -1) :
+    def getOptimisticSolution(self, start, capacity) :
         if capacity == -1 :
             capacity = self.capacity
         v = 0
         w = 0
         for i in range(start, self.numItems) :
             if w + self.items[i].weight > self.capacity :
-                return v + (self.capacity - w)*self.items[i].value/self.items[i].weight
+                return v + float(self.capacity - w)*self.items[i].value/self.items[i].weight
             else :
                 w += self.items[i].weight
                 v += self.items[i].value
         return v
 
-    def _solve(self, idx, weight, value) :
-        self.wayCounter += 1
-        if weight > self.capacity or self.wayCounter > 1000000:
-            return
-            
-        if idx == self.numItems :
-            if value > self.bestValue :
-                self.bestValue = value
-                self.bestTaken = self.taken[:]
-            return
-            
+    def _solve(self, idx, weight, value) :        
         # Check solution again optimistic value
         ov0 = value + self.getOptimisticSolution(idx+1, self.capacity - weight)
         ov1 = value + self.items[idx].value + self.getOptimisticSolution(idx+1, self.capacity - weight - self.items[idx].weight)
         
-        if ov1 > ov0 :
-            if ov1 > self.bestValue :
-                self.taken[idx] = 1
-                self._solve(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value)
-            if ov0 > self.bestValue :
-                self.taken[idx] = 0
-                self._solve(idx + 1, weight, value)
+        if ov1 >= ov0 :
+            if ov1 >= self.bestValue and weight + self.items[idx].weight <= self.capacity :
+                self.steps.append(Step(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value, 1))
+            if ov0 >= self.bestValue and weight <= self.capacity :
+                self.steps.append(Step(idx + 1, weight, value, 0))
         else :
-            if ov0 > self.bestValue :
-                self.taken[idx] = 0
-                self._solve(idx + 1, weight, value)
-            if ov1 > self.bestValue :
-                self.taken[idx] = 1
-                self._solve(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value)
+            if ov0 >= self.bestValue and weight <= self.capacity :
+                self.steps.append(Step(idx + 1, weight, value, 0))
+            if ov1 >= self.bestValue and weight + self.items[idx].weight <= self.capacity :
+                self.steps.append(Step(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value, 1))
 
-    def solve(self) :
+    def solve(self) :        
         self.sort()
+        #print [float(i.value)/i.weight for i in self.items]
+        #print self.items
         self.wayCounter = 0
         
         self.bestValue = 0
         self.bestTaken = 0        
-        
+                
+        self.steps = []                
         self._solve(0, 0, 0)
+        while self.steps :            
+            step = self.steps.pop()
+
+            self.wayCounter += 1
+            if self.wayCounter > 1000000:
+                continue
+            
+            if step.idx == self.numItems or step.weight == self.capacity:
+                if step.value > self.bestValue :
+                    self.bestValue = step.value
+                    self.bestTaken = self.taken[:]
+                continue
+
+            self.taken[step.idx] = step.taken
+            self._solve(step.idx, step.weight, step.value)
         
-        self.taken = self.bestTaken[:]
+        for i in range(self.numItems) :
+            self.taken[self.items[i].index] = self.bestTaken[i]
+         
         self.value = self.bestValue
 
 
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
+    # knapzak = KnapzakGreedyDensity(input_data)
     knapzak = KnapzakOptimisticBounding(input_data)
     knapzak.solve()
     return knapzak.getOutput()        
