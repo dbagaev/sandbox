@@ -13,7 +13,7 @@ class KnapzakBase :
         self.item_count = int(firstLine[0])
         self.capacity = int(firstLine[1])
 
-        self.items = []
+        self.items = [] 
 
         i = 0
         for line in lines[1:] :
@@ -22,6 +22,7 @@ class KnapzakBase :
                 continue
             self.items.append(Item(i, int(parts[0]), int(parts[1])))
             i += 1
+        self.numItems = len(self.items)
 
         # Init knapzak values
         self.value = 0
@@ -48,17 +49,83 @@ class KnapzakTrivialGreedy(KnapzakBase) :
                 self.value += item.value
                 self.weight += item.weight
 
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+
 class KnapzakGreedyDensity(KnapzakTrivialGreedy) :    
     def sort(self):
-        # a trivial greedy algorithm for filling the knapsack
-        # it takes items in-order until the knapsack is full
         self.items = sorted(self.items, key = lambda x : x.value/x.weight)
-                
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+
+class KnapzakOptimisticBounding(KnapzakGreedyDensity):
+    
+    def getOptimisticSolution(self, start = 0, capacity = -1) :
+        if capacity == -1 :
+            capacity = self.capacity
+        v = 0
+        w = 0
+        for i in range(start, self.numItems) :
+            if w + self.items[i].weight > self.capacity :
+                return v + (self.capacity - w)*self.items[i].value/self.items[i].weight
+            else :
+                w += self.items[i].weight
+                v += self.items[i].value
+        return v
+
+    def _solve(self, idx, weight, value) :
+        self.wayCounter += 1
+        if weight > self.capacity or self.wayCounter > 1000000:
+            return
+            
+        if idx == self.numItems :
+            if value > self.bestValue :
+                self.bestValue = value
+                self.bestTaken = self.taken[:]
+            return
+            
+        # Check solution again optimistic value
+        ov0 = value + self.getOptimisticSolution(idx+1, self.capacity - weight)
+        ov1 = value + self.items[idx].value + self.getOptimisticSolution(idx+1, self.capacity - weight - self.items[idx].weight)
+        
+        if ov1 > ov0 :
+            if ov1 > self.bestValue :
+                self.taken[idx] = 1
+                self._solve(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value)
+            if ov0 > self.bestValue :
+                self.taken[idx] = 0
+                self._solve(idx + 1, weight, value)
+        else :
+            if ov0 > self.bestValue :
+                self.taken[idx] = 0
+                self._solve(idx + 1, weight, value)
+            if ov1 > self.bestValue :
+                self.taken[idx] = 1
+                self._solve(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value)
+
+    def solve(self) :
+        self.sort()
+        self.wayCounter = 0
+        
+        self.bestValue = 0
+        self.bestTaken = 0        
+        
+        self._solve(0, 0, 0)
+        
+        self.taken = self.bestTaken[:]
+        self.value = self.bestValue
+
+
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
-    knapzak = KnapzakGreedyDensity(input_data)
+    knapzak = KnapzakOptimisticBounding(input_data)
     knapzak.solve()
-    return knapzak.getOutput()
+    return knapzak.getOutput()        
 
 import sys
 
