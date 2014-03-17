@@ -82,19 +82,24 @@ class KnapzakOptimisticBounding(KnapzakGreedyDensity):
 
     def _solve(self, idx, weight, value) :        
         # Check solution again optimistic value
-        ov0 = value + self.getOptimisticSolution(idx+1, self.capacity - weight)
-        ov1 = value + self.items[idx].value + self.getOptimisticSolution(idx+1, self.capacity - weight - self.items[idx].weight)
+        if idx < 0 :
+            ov0 = self.getOptimisticSolution(0, self.capacity)
+            ov1 = ov0
+            idx = -1
+        else :
+            ov0 = value + self.getOptimisticSolution(idx+1, self.capacity - weight)
+            ov1 = value + self.items[idx+1].value + self.getOptimisticSolution(idx+1, self.capacity - weight - self.items[idx].weight)
         
         if ov1 >= ov0 :
-            if ov1 >= self.bestValue and weight + self.items[idx].weight <= self.capacity :
-                self.steps.append(Step(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value, 1))
+            if ov1 >= self.bestValue and weight + self.items[idx+1].weight <= self.capacity :
+                self.steps.append(Step(idx + 1, weight + self.items[idx+1].weight, value + self.items[idx+1].value, 1))
             if ov0 >= self.bestValue and weight <= self.capacity :
                 self.steps.append(Step(idx + 1, weight, value, 0))
         else :
             if ov0 >= self.bestValue and weight <= self.capacity :
                 self.steps.append(Step(idx + 1, weight, value, 0))
-            if ov1 >= self.bestValue and weight + self.items[idx].weight <= self.capacity :
-                self.steps.append(Step(idx + 1, weight + self.items[idx].weight, value + self.items[idx].value, 1))
+            if ov1 >= self.bestValue and weight + self.items[idx+1].weight <= self.capacity :
+                self.steps.append(Step(idx + 1, weight + self.items[idx+1].weight, value + self.items[idx+1].value, 1))
 
     def solve(self) :        
         self.sort()
@@ -106,21 +111,28 @@ class KnapzakOptimisticBounding(KnapzakGreedyDensity):
         self.bestTaken = 0        
                 
         self.steps = []                
-        self._solve(0, 0, 0)
+        self._solve(-1, 0, 0)
         while self.steps :            
             step = self.steps.pop()
+            # print step
 
             self.wayCounter += 1
             if self.wayCounter > 1000000:
                 continue
             
-            if step.idx == self.numItems or step.weight == self.capacity:
+            self.taken[step.idx] = step.taken
+            # print "[%s] => %s" % (step.idx, step.taken)
+            # print self.taken            
+            
+            if step.idx == self.numItems-1 or step.weight == self.capacity:
                 if step.value > self.bestValue :
                     self.bestValue = step.value
                     self.bestTaken = self.taken[:]
+                    # print step.idx
+                    # print self.bestTaken
+                    # print self.bestValue
                 continue
-
-            self.taken[step.idx] = step.taken
+            
             self._solve(step.idx, step.weight, step.value)
         
         for i in range(self.numItems) :
